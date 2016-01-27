@@ -21,7 +21,9 @@ class Parser:
             T_False: self.handle_false,
             T_Not: self.handle_not,
             T_Quote: self.handle_quote,
-            T_Num: self.handle_num
+            T_Num: self.handle_num,
+            T_Less: self.handle_ineq,
+            T_Greater: self.handle_ineq
         }
 
     def _get_value_from_word_token(self, tokens):
@@ -191,6 +193,26 @@ class Parser:
             target = Name(id=left["value"], ctx=Store())
             return Assign(targets=[target], value=right), tokens
 
+    def handle_ineq(self, left, tokens):
+        valid_tokens = [T_LParen, T_True, T_False, T_Quote, T_Num]
+        cmpop = None
+        if self.peek(tokens) == T_Greater:
+            cmpop = Gt()
+            self.consume(tokens, T_Greater)    
+        else:
+            cmpop = Lt()
+            self.consume(tokens, T_Less)
+        followup = self.peek(tokens)
+        if followup == T_Word:
+            right = self._get_value_from_word_token(tokens)
+        elif followup in valid_tokens:
+            right, tokens = self._token_to_function_map[followup](tokens)
+        else:
+            right = self._temporary_error(msg="less_error")
+
+        first = Name(id=left["value"], ctx=Load())
+        return Compare(left=first, ops=[cmpop], comparators=[right]), tokens
+
     # Print
     def handle_print(self, tokens) -> (stmt, list):
         valid_tokens = [T_Quote, T_LParen, T_Num, T_True, T_False, T_Word]
@@ -277,6 +299,8 @@ class Parser:
         nxt = self.peek(tokens)
         if nxt == T_Is:
             return self.handle_is(token, tokens)
+        elif nxt == T_Less or nxt == T_Greater:
+            return self.handle_ineq(token, tokens)
         else:
             word_var = Name(id=token["value"], ctx=Load())
             if nxt in token_to_argument_map:
